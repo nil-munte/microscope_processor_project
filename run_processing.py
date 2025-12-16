@@ -15,7 +15,9 @@ original_stack_img = MicroscopeProcessor.load_tif(input_tif_image)
 original_single_img = MicroscopeProcessor.load_png(input_png_image)
 
 # Creating an instance of the MicroscopeProcessor class
-processor = MicroscopeProcessor(original_stack_img, original_single_img)
+processor = MicroscopeProcessor()
+processor.add_stack_img(original_stack_img)
+processor.add_single_img(original_single_img)  
 
 # ------------ Frame combination algorithm 
 
@@ -32,8 +34,7 @@ weighted_complex_avg_img = processor.weighted_complex_average()
 
 # Period (in pixels)
 T = 16
-# Order: between 3-4 to obtain a good balance between removing background and preserving image details
-order = 3
+order = 8
 
 high_pass_filtered_img, A_mix_img, B_mix_img, A_low_pass_img, B_low_pass_img, fourier_based_img = processor.fourier_based_demodulation(T, order)
 
@@ -81,6 +82,26 @@ plt.title("Low-Pass Filtered B_mix Image")
 plt.subplot(2,3,6)
 plt.imshow(fourier_based_img, cmap='gray')
 plt.title("Fourier-Based Demodulation Image")
+
+# Fourier-based demodulation (Spectrum)
+
+plt.figure(3, figsize=(12,4))
+
+plt.subplot(1,4,1)
+MicroscopeProcessor.plot_spectrum(original_single_img, "Original Image", cmap='magma')
+plt.title("Original Image")
+
+plt.subplot(1,4,2)
+MicroscopeProcessor.plot_spectrum(high_pass_filtered_img, "Original Image", cmap='magma')
+plt.title("High-Pass Filtered Image")
+
+plt.subplot(1,4,3)
+MicroscopeProcessor.plot_spectrum(A_low_pass_img, "Original Image", cmap='magma')
+plt.title("Low-Pass Filtered A_mix Image")
+
+plt.subplot(1,4,4)
+MicroscopeProcessor.plot_spectrum(B_low_pass_img, "Original Image", cmap='magma')
+plt.title("Low-Pass Filtered B_mix Image")
 
 plt.show()
 

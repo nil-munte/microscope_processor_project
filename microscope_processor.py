@@ -1,14 +1,18 @@
 import tifffile
 import imageio.v2 as iio
 import numpy as np
-from scipy.signal import butter, filtfilt
+from scipy.signal import butter, freqz
+from scipy.fft import fft2, ifft2, fftshift
+from matplotlib import pyplot as plt    
 
 class MicroscopeProcessor:
-
-    def __init__(self, original_stack_img, original_single_img):
+        
+    def add_stack_img(self, original_stack_img):
         self.stack = original_stack_img
-        self.img = original_single_img
         self.C_stack, _, _ = self.stack.shape
+        
+    def add_single_img(self, original_single_img):
+        self.img = original_single_img
 
     # Frame combination algorithm. Average projection: compute the mean across all C frames
     # Computing the sum across axis 0 (C dimension): I_result = Σ_{i=0}^{C-1} I_i(x, y)
@@ -30,57 +34,82 @@ class MicroscopeProcessor:
         # w_k[:, None, None]: reshapes w_k from C to C, 1, 1 so we can multiply weights and image at each corresponding channel
         return np.abs(np.sum(self.stack * w_k[:, None, None], axis = 0))
     
-    # Fourier-based demodulation method
-    # Butterworth filter (2D), indicating type ('high', 'low' for this project) (private method)
-    # The order of a Butterworth filter controls how steeply the filter transitions from passband to stopband
-    def _butter_filter(self, cuttoff_frequency, order, type):
-        # The cutoff frequencies in this method are normalized by the Nyquist frequency
-        Wn = cuttoff_frequency/0.5
-        b, a = butter(order, Wn, btype=type, analog=False)
-        return b, a
+    @staticmethod
+    def plot_spectrum(img, title, cmap='magma'):
+        F = np.fft.fft2(img)
+        F_shifted = np.fft.fftshift(F)
+        magnitude = np.log1p(np.abs(F_shifted))
+        magnitude = magnitude / np.max(magnitude)
+        plt.imshow(magnitude, cmap=cmap)  # change colormap here
+        plt.title(title)
+        plt.axis('off')
     
     # Fourier-based demodulation method
-    # Butterworth filter application to the image (private method)
-    def _apply_filter(self, img, b, a):
-        # Apply the 2-D Vutterworth filter along both axes using filtfilt for zero-phase filtering
-        # axis = 0 -> H
-        # axis = 1 -> W
-        img_filt_x = filtfilt(b, a, img, axis=0)
-        img_filt_xy = filtfilt(b, a, img_filt_x, axis=1)
+    # Butterworth filter (private method)
+    @staticmethod
+    def _butter_filter_lowpass(cuttoff_frequency, rows, cols, order):
         
-        return img_filt_xy
-    
+        freqs_norm = np.linspace(-0.5, 0.5, rows, endpoint=False)
+        Hy = 1.0 / (1.0 + (np.abs(freqs_norm) / cuttoff_frequency)**(2 * order))
+        '''
+        b, a = butter(order, cuttoff_frequency, btype='low', analog=False)
+        _, h = freqz(b, a, worN=rows, whole = True)
+        Hy = np.abs(np.fft.fftshift(h))
+        '''
+        
+        # Convert 1D to 2D
+        Hy = Hy[:, np.newaxis]     # (rows, 1)
+        Hx = np.ones((1, cols))    # (1, cols)
+        
+        return Hy @ Hx
+
+    @staticmethod
+    def _butter_filter_highpass(cuttoff_frequency, rows, cols, order):
+        return 1 - MicroscopeProcessor._butter_filter_lowpass(cuttoff_frequency, rows, cols, order)
+
+    # Fourier-based demodulation method
+    # Apply filter in Fourier domain
+    @staticmethod
+    def apply_filter(image_input, H):
+        F = np.fft.fft2(image_input)
+        F_shifted = np.fft.fftshift(F)
+        F_filtered = F_shifted * H
+        F_ifft = np.fft.ifft2(np.fft.ifftshift(F_filtered))
+        img_filtered = np.real(F_ifft)
+        return img_filtered, F_filtered
+
     # Fourier-based demodulation method
     def fourier_based_demodulation(self, T, order):
         
-        cut_off_frequency = 1 / T
+        rows, cols = self.img.shape
+        cut_off_frequency = 1 / T    
         
         # 1) High-pass filtering
-        bh, ah = self._butter_filter(cut_off_frequency, order, 'highpass')
-        high_pass_filtered_img = self._apply_filter(self.img, bh, ah)
-        
+        H_high_filter = self._butter_filter_highpass(cut_off_frequency, rows, cols, order)
+        high_filtered_img, _ = MicroscopeProcessor.apply_filter(self.img, H_high_filter)
+
         # 2) Frequency downshift via multiplication by sine/cosine references
-        # Modulation along width
-        x = np.arange(self.img.shape[0])[:, None]
-        # Cosine modulation of period T
-        cos_mod = np.cos(2*np.pi*x / T)
-        # Sine modulation of period T
-        sin_mod = np.sin(2*np.pi*x / T)
         
-        A_mix_img = high_pass_filtered_img * cos_mod
-        B_mix_img = high_pass_filtered_img * sin_mod
+        x = np.arange(rows)
+        y = np.arange(cols)
+        X, _ = np.meshgrid(x, y, indexing='ij')
+        cos_mod = np.cos(2*np.pi*X / T)
+        sin_mod = np.sin(2*np.pi*X / T)
+        
+        A_mix_img = high_filtered_img * cos_mod
+        B_mix_img = high_filtered_img * sin_mod
         
         # 3) Low-pass filtering of the A and B signals
         # Retains only the frequency content of interest while discarding high-frequency artifacts
-        bl, al = self._butter_filter(cut_off_frequency, order, 'lowpass')
-        A_low_pass_img = self._apply_filter(A_mix_img, bl, al)
-        B_low_pass_img = self._apply_filter(B_mix_img, bl, al)
+        H_low_filter_1D = MicroscopeProcessor._butter_filter_lowpass(cut_off_frequency, rows, cols, order)
+        A_low_filtered_img, _ = MicroscopeProcessor.apply_filter(self.img, H_low_filter_1D)
+        B_low_filtered_img, _ = MicroscopeProcessor.apply_filter(self.img, H_low_filter_1D)
         
         # 4) Magnitude reconstruction
         # Combine the filtered A and B components:
-        img_result = np.sqrt(A_low_pass_img**2 + B_low_pass_img**2)
+        img_result = np.sqrt(A_low_filtered_img**2 + B_low_filtered_img**2)
 
-        return high_pass_filtered_img, A_mix_img, B_mix_img, A_low_pass_img, B_low_pass_img, img_result
+        return high_filtered_img, A_mix_img, B_mix_img, A_low_filtered_img, B_low_filtered_img, img_result
     
     # Method to load a TIFF into a numpy array
     # Input shape is (C, H, W), with C = 10
