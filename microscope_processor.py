@@ -34,6 +34,8 @@ class MicroscopeProcessor:
         # w_k[:, None, None]: reshapes w_k from C to C, 1, 1 so we can multiply weights and image at each corresponding channel
         return np.abs(np.sum(self.stack * w_k[:, None, None], axis = 0))
     
+    # Fourier-based demodulation method
+    # Method to plot the spectrum from an image (private static method)
     @staticmethod
     def plot_spectrum(img, title, cmap='magma'):
         F = np.fft.fft2(img)
@@ -45,15 +47,18 @@ class MicroscopeProcessor:
         plt.axis('off')
     
     # Fourier-based demodulation method
-    # Butterworth filter (private method)
+    # Butterworth Low-Pass filter (private static method)
     @staticmethod
     def _butter_filter_lowpass(cuttoff_frequency, rows, cols, order):
         
         freqs_norm = np.linspace(-0.5, 0.5, rows, endpoint=False)
+        
+        # Ideal Butterworth filter
         '''
         Hy = 1.0 / (1.0 + (np.abs(freqs_norm) / cuttoff_frequency)**(2 * order))
         '''
         
+        # butter + freqz filter
         b, a = butter(order, cuttoff_frequency, btype='low', analog=False)
         _, h = freqz(b, a, worN=rows, whole = True)
         Hy = np.abs(np.fft.fftshift(h))
@@ -64,12 +69,14 @@ class MicroscopeProcessor:
         
         return Hy @ Hx
 
+    # Fourier-based demodulation method
+    # Butterworth High-Pass filter (private static method)
     @staticmethod
     def _butter_filter_highpass(cuttoff_frequency, rows, cols, order):
         return 1 - MicroscopeProcessor._butter_filter_lowpass(cuttoff_frequency, rows, cols, order)
 
     # Fourier-based demodulation method
-    # Apply filter in Fourier domain
+    # Apply filter in Fourier domain (private static method)
     @staticmethod
     def apply_filter(image_input, H):
         F = np.fft.fft2(image_input)

@@ -104,11 +104,12 @@ class TifTab(QWidget):
         # display stack in ImageView - ImageView accepts 3D arrays (frames, height, width)
         # ensure array is numpy and in shape (frames, H, W)
         if isinstance(self.stack_img, np.ndarray) and self.stack_img.ndim == 3:
-            self.original_view.setImage(self.stack_img)
+            self.original_view.setImage(self.stack_img[0].T)
             n_frames = self.stack_img.shape[0]
             self.slider.setMaximum(max(0, n_frames - 1))
             self.slider.setEnabled(True)
             self.slider.setValue(0)
+            #self.update_frame
         else:
             QMessageBox.warning(self, "Unexpected data", "Loaded TIF has unexpected shape. Expecting 3D numpy array (C,H,W).")
 
@@ -118,7 +119,7 @@ class TifTab(QWidget):
         idx = self.slider.value()
         # show single frame (2D) in the ImageView
         frame = self.stack_img[idx]
-        self.original_view.setImage(frame)
+        self.original_view.setImage(frame.T)
 
     def run_processing(self):
         if self.stack_img is None:
@@ -145,7 +146,7 @@ class TifTab(QWidget):
             return
 
         # result should be 2D image
-        self.processed_view.setImage(np.asarray(result))
+        self.processed_view.setImage(result.T)
 
 
 class PngTab(QWidget):
@@ -243,7 +244,7 @@ class PngTab(QWidget):
             return
 
         # show original
-        self.original_view.setImage(self.single_img)
+        self.original_view.setImage(self.single_img.T)
 
     def run_processing(self):
         if self.single_img is None:
@@ -306,7 +307,7 @@ class PngTab(QWidget):
             self.intermediate_view.clear()
             return
 
-        self.intermediate_view.setImage(np.asarray(arr))
+        self.intermediate_view.setImage(arr.T)
 
 class MainWindow(QWidget):
     def __init__(self):
