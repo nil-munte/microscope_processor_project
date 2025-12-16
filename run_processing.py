@@ -34,7 +34,7 @@ weighted_complex_avg_img = processor.weighted_complex_average()
 
 # Period (in pixels)
 T = 16
-order = 4
+order = 8
 
 high_pass_filtered_img, A_mix_img, B_mix_img, A_low_pass_img, B_low_pass_img, fourier_based_img = processor.fourier_based_demodulation(T, order)
 

@@ -100,7 +100,7 @@ class MicroscopeProcessor:
         
         x = np.arange(rows)
         y = np.arange(cols)
-        X, _ = np.meshgrid(x, y, indexing='ij')
+        X, Y = np.meshgrid(x, y, indexing='ij')
         cos_mod = np.cos(2*np.pi*X / T)
         sin_mod = np.sin(2*np.pi*X / T)
         
