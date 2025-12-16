@@ -50,12 +50,13 @@ class MicroscopeProcessor:
     def _butter_filter_lowpass(cuttoff_frequency, rows, cols, order):
         
         freqs_norm = np.linspace(-0.5, 0.5, rows, endpoint=False)
+        '''
         Hy = 1.0 / (1.0 + (np.abs(freqs_norm) / cuttoff_frequency)**(2 * order))
         '''
+        
         b, a = butter(order, cuttoff_frequency, btype='low', analog=False)
         _, h = freqz(b, a, worN=rows, whole = True)
         Hy = np.abs(np.fft.fftshift(h))
-        '''
         
         # Convert 1D to 2D
         Hy = Hy[:, np.newaxis]     # (rows, 1)
@@ -101,9 +102,9 @@ class MicroscopeProcessor:
         
         # 3) Low-pass filtering of the A and B signals
         # Retains only the frequency content of interest while discarding high-frequency artifacts
-        H_low_filter_1D = MicroscopeProcessor._butter_filter_lowpass(cut_off_frequency, rows, cols, order)
-        A_low_filtered_img, _ = MicroscopeProcessor.apply_filter(self.img, H_low_filter_1D)
-        B_low_filtered_img, _ = MicroscopeProcessor.apply_filter(self.img, H_low_filter_1D)
+        H_low_filter = MicroscopeProcessor._butter_filter_lowpass(cut_off_frequency, rows, cols, order)
+        A_low_filtered_img, _ = MicroscopeProcessor.apply_filter(A_mix_img, H_low_filter)
+        B_low_filtered_img, _ = MicroscopeProcessor.apply_filter(B_mix_img, H_low_filter)
         
         # 4) Magnitude reconstruction
         # Combine the filtered A and B components:
