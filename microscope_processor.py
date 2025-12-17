@@ -54,15 +54,15 @@ class MicroscopeProcessor:
         freqs_norm = np.linspace(-0.5, 0.5, rows, endpoint=False)
         
         # Ideal Butterworth filter
-        '''
-        Hy = 1.0 / (1.0 + (np.abs(freqs_norm) / cuttoff_frequency)**(2 * order))
-        '''
         
+        Hy = 1.0 / (1.0 + (np.abs(freqs_norm) / cuttoff_frequency)**(2 * order))
+        
+        '''
         # butter + freqz filter
         b, a = butter(order, cuttoff_frequency, btype='low', analog=False)
         _, h = freqz(b, a, worN=rows, whole = True)
         Hy = np.abs(np.fft.fftshift(h))
-        
+        '''
         # Convert 1D to 2D
         Hy = Hy[:, np.newaxis]     # (rows, 1)
         Hx = np.ones((1, cols))    # (1, cols)
@@ -99,13 +99,11 @@ class MicroscopeProcessor:
         # 2) Frequency downshift via multiplication by sine/cosine references
         
         x = np.arange(rows)
-        y = np.arange(cols)
-        X, Y = np.meshgrid(x, y, indexing='ij')
-        cos_mod = np.cos(2*np.pi*X / T)
-        sin_mod = np.sin(2*np.pi*X / T)
-        
-        A_mix_img = high_filtered_img * cos_mod
-        B_mix_img = high_filtered_img * sin_mod
+        cos_mod = np.cos(2*np.pi*x / T)
+        sin_mod = np.sin(2*np.pi*x / T)
+            
+        A_mix_img = high_filtered_img * cos_mod[:, None]
+        B_mix_img = high_filtered_img * sin_mod[:, None]
         
         # 3) Low-pass filtering of the A and B signals
         # Retains only the frequency content of interest while discarding high-frequency artifacts
